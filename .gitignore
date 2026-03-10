@@ -1,0 +1,5 @@
+**/node_modules/
+server/jspm_packages/
+server/web_modules/
+
+.env
