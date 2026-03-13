@@ -11,6 +11,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Debug secrets
+        run: |
+          echo "Username: '${{ secrets.DOCKERHUB_USERNAME }}'"
+          echo "Length: ${#DOCKERHUB_USERNAME}"
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       
       - name: Log in to secrets
         uses: docker/login-action@v3
@@ -25,7 +32,7 @@ jobs:
           push: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/client:${{ github.run_number }}
-            ${{ secrets.DOCKER_USERNAME }}/client:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/client:latest
 
       - name: Build and Push server
         uses: docker/build-push-action@v5
