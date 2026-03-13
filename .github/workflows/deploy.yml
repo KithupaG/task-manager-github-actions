@@ -12,13 +12,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Debug secrets
-        run: |
-          echo "Username: '${{ secrets.DOCKERHUB_USERNAME }}'"
-          echo "Length: ${#DOCKERHUB_USERNAME}"
-        env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      
       - name: Log in to secrets
         uses: docker/login-action@v3
         with:
