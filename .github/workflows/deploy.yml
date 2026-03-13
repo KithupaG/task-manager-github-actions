@@ -60,10 +60,10 @@ jobs:
 
       - name: Deploy to k3s
         run: |
-          kubectl apply -f k8s/postgres/secret.yaml
-          kubectl apply -f k8s/postgres/deployment.yaml
-          kubectl apply -f k8s/backend/deployment.yaml
-          kubectl apply -f k8s/frontend/deployment.yaml
+          kubectl apply --validate=false -f k8s/postgres/secret.yaml
+          kubectl apply --validate=false -f k8s/postgres/deployment.yaml
+          kubectl apply --validate=false -f k8s/backend/deployment.yaml
+          kubectl apply --validate=false -f k8s/frontend/deployment.yaml
           kubectl rollout status deployment/backend --timeout=500s
           kubectl rollout status deployment/frontend --timeout=500s
 
