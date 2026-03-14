@@ -44,30 +44,35 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v3
-
-      - name: Configure kubeconfig
-        run: |
-          mkdir -p ~/.kube
-          echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
-          chmod 600 ~/.kube/config
+      - name: Create k8s cluster with kind
+        uses: helm/kind-action@v1.10.0
+        with:
+          cluster_name: todo-cluster
 
       - name: Update image tags
         run: |
           sed -i "s|image: ${{ secrets.DOCKERHUB_USERNAME }}/server:.*|image: ${{ secrets.DOCKERHUB_USERNAME }}/server:${{ github.run_number }}|" k8s/backend/deployment.yaml
           sed -i "s|image: ${{ secrets.DOCKERHUB_USERNAME }}/client:.*|image: ${{ secrets.DOCKERHUB_USERNAME }}/client:${{ github.run_number }}|" k8s/frontend/deployment.yaml
 
-      - name: Deploy to k3s
+      - name: Deploy to kind
         run: |
           kubectl apply --validate=false -f k8s/postgres/secret.yaml
           kubectl apply --validate=false -f k8s/postgres/deployment.yaml
           kubectl apply --validate=false -f k8s/backend/deployment.yaml
           kubectl apply --validate=false -f k8s/frontend/deployment.yaml
-          kubectl rollout status deployment/backend --timeout=500s
-          kubectl rollout status deployment/frontend --timeout=500s
+
+      - name: Wait for pods
+        run: |
+          kubectl wait --for=condition=ready pod -l app=postgres --timeout=120s
+          kubectl exec -it $(kubectl get pod -l app=postgres -o jsonpath="{.items[0].metadata.name}") -- psql -U postgres -d todo_db -c "CREATE TABLE IF NOT EXISTS todo (todo_id SERIAL PRIMARY KEY, description VARCHAR(255));"
+          kubectl wait --for=condition=ready pod -l app=backend --timeout=120s
+          kubectl wait --for=condition=ready pod -l app=frontend --timeout=120s
 
       - name: Verify deployment
         run: |
           kubectl get pods
           kubectl get services
+          # Test the API works
+          kubectl port-forward service/frontend 8080:80 &
+          sleep 5
+          curl http://localhost:8080/api/todos
