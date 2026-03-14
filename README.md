@@ -284,8 +284,6 @@ mkdir -p ~/task-manager
 
 ---
 
-## 📌
-
 ### Completed
 - [x] Migrated from Jenkins to GitHub Actions — zero CI server overhead
 - [x] Automated database table creation via `docker-entrypoint-initdb.d/`
@@ -308,6 +306,6 @@ mkdir -p ~/task-manager
 
 ---
 
-## 📄 License
+## License
 
 MIT
