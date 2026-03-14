@@ -15,17 +15,6 @@ A full-stack PERN (PostgreSQL, Express, React, Node.js) task manager app with tw
 
 ---
 
-## Architecture
-
-```
-Developer → GitHub Push → GitHub Actions → Docker Hub → AWS EC2
-                                ↓
-                    Build & push Docker images
-                    Pin exact build number tag in compose
-                    SCP docker-compose.yaml to EC2
-                    SSH into EC2 → docker compose up
-```
-
 ### Infrastructure
 
 | Component | Technology |
