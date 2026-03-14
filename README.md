@@ -11,7 +11,7 @@
 
 A full-stack PERN (PostgreSQL, Express, React, Node.js) task manager app with two deployment modes — Docker Compose on AWS EC2 and Kubernetes via kind/k3s — both automated through GitHub Actions.
 
-> **v2 of this project** — previously deployed with Jenkins. Migrated to GitHub Actions and extended with Kubernetes support. See [task-manager-cicd-pipeline](https://github.com/yourusername/task-manager-cicd-pipeline) for the Jenkins version.
+> **v2 of this project** — previously deployed with Jenkins. Migrated to GitHub Actions and extended with Kubernetes support. See [task-manager-cicd-pipeline](https://github.com/kithupag/task-manager-cicd-pipeline) for the Jenkins version.
 
 ---
 
