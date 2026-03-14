@@ -64,7 +64,13 @@ jobs:
       - name: Wait for pods
         run: |
           kubectl wait --for=condition=ready pod -l app=postgres --timeout=120s
+          
+          # Wait for postgres to actually accept connections
+          kubectl exec $(kubectl get pod -l app=postgres -o jsonpath="{.items[0].metadata.name}") -- sh -c "until pg_isready -h 127.0.0.1 -U postgres; do echo 'waiting for postgres...'; sleep 2; done"
+          
+          # Now create the table
           kubectl exec $(kubectl get pod -l app=postgres -o jsonpath="{.items[0].metadata.name}") -- psql -h 127.0.0.1 -U postgres -d todo_db -c "CREATE TABLE IF NOT EXISTS todo (todo_id SERIAL PRIMARY KEY, description VARCHAR(255));"
+          
           kubectl wait --for=condition=ready pod -l app=backend --timeout=120s
           kubectl wait --for=condition=ready pod -l app=frontend --timeout=120s
 
