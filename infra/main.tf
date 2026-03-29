@@ -76,7 +76,7 @@ module "eks" {
     version = "~> 21.0"
 
     name               = "myapp-eks-cluster"
-    kubernetes_version = "1.33"
+    kubernetes_version = "1.30"
 
     endpoint_public_access                 = true
     enable_cluster_creator_admin_permissions = true
@@ -84,7 +84,7 @@ module "eks" {
     eks_managed_node_groups = {
         dev_nodes = {
         ami_type       = "AL2023_x86_64_STANDARD"
-        instance_types = ["t3.small"]
+        instance_types = ["t3.medium", "t3.large"]
         min_size       = 1
         max_size       = 3
         desired_size   = 2
