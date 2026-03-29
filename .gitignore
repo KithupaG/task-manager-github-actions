@@ -3,3 +3,21 @@ server/jspm_packages/
 server/web_modules/
 
 .env
+
+# local .terraform directory
+infra/.terraform/*
+infra/bootstrap/.terraform/*
+
+# tf state files
+infra/*.tfstate
+infra/bootstrap/*.tfstate.*
+infra/bootstrap/*.tfstate
+infra/bootstrap/*.tfstate.*
+
+# tf variable files
+infra/*.tfvars
+infra/bootstrap/*.tfvars
+
+# tf lock files
+infra/.terraform.lock.hcl
+infra/bootstrap/.terraform.lock.hcl

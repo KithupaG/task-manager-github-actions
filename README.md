@@ -1,6 +1,7 @@
 # 📋 PERN Task Manager — GitHub Actions CI/CD Pipeline
 
 ![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)
+![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 ![AWS](https://img.shields.io/badge/AWS_EC2-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)
@@ -8,9 +9,9 @@
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
 ![Nginx](https://img.shields.io/badge/Nginx-009639?style=for-the-badge&logo=nginx&logoColor=white)
 
-A full-stack PERN (PostgreSQL, Express, React, Node.js) task manager app deployed to AWS EC2 via a fully automated CI/CD pipeline using GitHub Actions and Docker.
+A full-stack PERN (PostgreSQL, Express, React, Node.js) task manager app deployed to Kubernetes via a fully automated CI/CD pipeline using GitHub Actions, kind, and K3s.
 
-> **v2 of this project** — previously deployed with Jenkins. Migrated to GitHub Actions to remove the need for a separate CI server. See [task-manager-cicd-pipeline](https://github.com/kithupag/task-manager-cicd-pipeline) for the Jenkins version.
+> **v3 of this project** — previously deployed with docker compose. Migrated to Kubernetes to move beyond single-host deployments. See [task-manager-cicd-pipeline](https://github.com/kithupag/task-manager-cicd-pipeline) for the Jenkins version.
 
 ---
 
