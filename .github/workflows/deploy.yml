@@ -71,6 +71,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+<<<<<<< HEAD
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -84,12 +85,19 @@ jobs:
       - name: Configure kubeconfig
         run: |
           aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name ${{ secrets.EKS_CLUSTER_NAME }}
+=======
+      - name: Create k8s cluster with kind
+        uses: helm/kind-action@v1.10.0
+        with:
+          cluster_name: todo-cluster
+>>>>>>> 95e164da5c6c68e5e8538cb95d411f66e6aa9f27
 
       - name: Update image tags
         run: |
           sed -i "s|image: ${{ secrets.DOCKERHUB_USERNAME }}/server:.*|image: ${{ secrets.DOCKERHUB_USERNAME }}/server:${{ github.run_number }}|" k8s/backend/deployment.yaml
           sed -i "s|image: ${{ secrets.DOCKERHUB_USERNAME }}/client:.*|image: ${{ secrets.DOCKERHUB_USERNAME }}/client:${{ github.run_number }}|" k8s/frontend/deployment.yaml
 
+<<<<<<< HEAD
       - name: Deploy to EKS Cluster
         run: |
           kubectl apply -f k8s/postgres/secret.yaml
@@ -98,8 +106,37 @@ jobs:
           kubectl apply -f k8s/frontend/deployment.yaml
           kubectl rollout status deployment/backend --timeout=300s
           kubectl rollout status deployment/frontend --timeout=300s
+=======
+      - name: Deploy to kind
+        run: |
+          kubectl apply --validate=false -f k8s/postgres/secret.yaml
+          kubectl apply --validate=false -f k8s/postgres/deployment.yaml
+          kubectl apply --validate=false -f k8s/backend/deployment.yaml
+          kubectl apply --validate=false -f k8s/frontend/deployment.yaml
+
+      - name: Wait for pods
+        run: |
+          kubectl wait --for=condition=ready pod -l app=postgres --timeout=120s
+          
+          # Wait for postgres to actually accept connections
+          kubectl exec $(kubectl get pod -l app=postgres -o jsonpath="{.items[0].metadata.name}") -- sh -c "until pg_isready -h 127.0.0.1 -U postgres; do echo 'waiting for postgres...'; sleep 2; done"
+          
+          # Now create the table
+          kubectl exec $(kubectl get pod -l app=postgres -o jsonpath="{.items[0].metadata.name}") -- psql -h 127.0.0.1 -U postgres -d todo_db -c "CREATE TABLE IF NOT EXISTS todo (todo_id SERIAL PRIMARY KEY, description VARCHAR(255));"
+          
+          kubectl wait --for=condition=ready pod -l app=backend --timeout=120s
+          kubectl wait --for=condition=ready pod -l app=frontend --timeout=120s
+>>>>>>> 95e164da5c6c68e5e8538cb95d411f66e6aa9f27
 
       - name: Verify deployment
         run: |
           kubectl get pods
+<<<<<<< HEAD
           kubectl get services
+=======
+          kubectl get services
+          # Test the API works
+          kubectl port-forward service/frontend 8080:80 &
+          sleep 5
+          curl http://localhost:8080/api/todos
+>>>>>>> 95e164da5c6c68e5e8538cb95d411f66e6aa9f27

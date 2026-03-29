@@ -1,4 +1,4 @@
-# 📋 PERN Task Manager — GitHub Actions CI/CD Pipeline
+# PERN Task Manager — GitHub Actions CI/CD Pipeline
 
 ![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white)
@@ -9,22 +9,17 @@
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
 ![Nginx](https://img.shields.io/badge/Nginx-009639?style=for-the-badge&logo=nginx&logoColor=white)
 
+<<<<<<< HEAD
 A full-stack PERN (PostgreSQL, Express, React, Node.js) task manager app deployed to Kubernetes via a fully automated CI/CD pipeline using GitHub Actions, kind, and K3s.
 
 > **v3 of this project** — previously deployed with docker compose. Migrated to Kubernetes to move beyond single-host deployments. See [task-manager-cicd-pipeline](https://github.com/kithupag/task-manager-cicd-pipeline) for the Jenkins version.
+=======
+A full-stack PERN (PostgreSQL, Express, React, Node.js) task manager app with two deployment modes — Docker Compose on AWS EC2 and Kubernetes via kind/k3s — both automated through GitHub Actions.
+
+> **v2 of this project** — previously deployed with Jenkins. Migrated to GitHub Actions and extended with Kubernetes support. See [task-manager-cicd-pipeline](https://github.com/kithupag/task-manager-cicd-pipeline) for the Jenkins version.
+>>>>>>> 95e164da5c6c68e5e8538cb95d411f66e6aa9f27
 
 ---
-
-## 🏗️ Architecture
-
-```
-Developer → GitHub Push → GitHub Actions → Docker Hub → AWS EC2
-                                ↓
-                    Build & push Docker images
-                    Pin exact build number tag in compose
-                    SCP docker-compose.yaml to EC2
-                    SSH into EC2 → docker compose up
-```
 
 ### Infrastructure
 
@@ -40,8 +35,9 @@ Developer → GitHub Push → GitHub Actions → Docker Hub → AWS EC2
 
 ---
 
-## 🚀 Pipeline Stages
+## Pipeline Stages
 
+### Mode 1 — Docker Compose (EC2)
 ```
 build-and-push ──────────────────────────► deploy
    ├── Checkout code                          ├── Checkout code
@@ -50,11 +46,24 @@ build-and-push ─────────────────────�
    └── Build & push server image              └── SSH → docker compose up -d
 ```
 
+### Mode 2 — Kubernetes (kind)
+```
+build-and-push ──────────────────────────► deploy
+   ├── Checkout code                          ├── Checkout code
+   ├── Log in to Docker Hub                   ├── Create kind cluster
+   ├── Build & push client image              ├── Update image tags
+   └── Build & push server image              ├── kubectl apply all manifests
+                                              ├── Wait for postgres ready
+                                              ├── Create database table
+                                              ├── Wait for backend + frontend
+                                              └── Run API smoke tests
+```
+
 The `deploy` job has `needs: build-and-push` — it only runs if the build succeeds. Both jobs run on fresh GitHub-hosted Ubuntu VMs.
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 task-manager-github-actions/
@@ -81,14 +90,23 @@ task-manager-github-actions/
 │   ├── Dockerfile
 │   └── package.json
 │
+├── k8s/                            # Kubernetes manifests
+│   ├── postgres/
+│   │   ├── deployment.yaml         # Postgres Deployment + Service + PVC
+│   │   └── secret.yaml             # DB credentials as k8s Secret
+│   ├── backend/
+│   │   └── deployment.yaml         # Backend Deployment + Service
+│   └── frontend/
+│       └── deployment.yaml         # Frontend Deployment + NodePort Service
+│
 ├── database.sql                    # Mounted into postgres on fresh deploy
-├── docker-compose.yaml             # Production compose — image tags pinned by pipeline
+├── docker-compose.yaml             # Local dev + EC2 compose deployment
 └── README.md
 ```
 
 ---
 
-## 🔧 Key Technical Decisions
+## Key Technical Decisions
 
 **GitHub Actions over Jenkins**
 Jenkins requires a dedicated server running 24/7. GitHub Actions runs on GitHub's infrastructure — no server to maintain, no Docker socket to mount, no SSH keys to manage inside a container. The pipeline logic is identical, the operational overhead is zero.
@@ -120,7 +138,7 @@ All three containers report real status. Backend and frontend are checked via HT
 
 ---
 
-## 🔄 Comparison with Jenkins Version
+## Comparison with Jenkins Version
 
 | | Jenkins Version | GitHub Actions Version |
 |--|----------------|----------------------|
@@ -135,7 +153,7 @@ All three containers report real status. Backend and frontend are checked via HT
 
 ---
 
-## 🛠️ Local Development Setup
+## Local Development Setup
 
 ### Prerequisites
 - Docker & Docker Compose
@@ -169,7 +187,7 @@ DB_NAME=todo_db
 
 ---
 
-## 📡 API Endpoints
+## API Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -181,7 +199,7 @@ DB_NAME=todo_db
 
 ---
 
-## ⚙️ Replicating This Pipeline
+## Replicating This Pipeline
 
 ### GitHub Secrets Required
 
@@ -222,7 +240,23 @@ mkdir -p ~/task-manager
 
 ---
 
-## 💡 Lessons Learned
+## Kubernetes Concepts Used
+
+**Deployment** — manages desired pod state. If a pod crashes Kubernetes automatically replaces it.
+
+**Service** — provides stable DNS names (, , ) so pods can reach each other regardless of their changing IPs.
+
+**PersistentVolumeClaim** — requests persistent storage for postgres so data survives pod restarts.
+
+**Secret** — stores database credentials as base64-encoded values injected as environment variables — never hardcoded in manifests.
+
+**NodePort Service** — exposes the frontend on port 30080 on every node, accessible from outside the cluster.
+
+**Readiness + Liveness Probes** — readiness controls when traffic is sent to a pod, liveness restarts pods that stop responding. Both use HTTP checks.
+
+---
+
+## Lessons Learned
 
 **From migrating Jenkins → GitHub Actions:**
 - Pipeline concepts are identical across tools — triggers, jobs, steps, secrets. Learning one makes the next trivial.
@@ -231,6 +265,13 @@ mkdir -p ~/task-manager
 - `needs:` in GitHub Actions is more explicit than Jenkins stage ordering — you declare job dependencies intentionally.
 - A running container might be from an old image — always verify the tag matches your latest build number before debugging.
 
+**From migrating to Kubernetes:**
+- `kubectl apply` succeeds even if the pod crashes seconds later — always verify with `kubectl wait`
+- Pod ready does not mean application ready — use `pg_isready` not just Kubernetes readiness probes
+- `-it` flags don't work in CI pipelines — no TTY available, always remove from `kubectl exec` in automation
+- Kubernetes service names are DNS — containers reach each other by service name, not IP
+- `kubectl describe pod` is more useful than `kubectl logs` when a pod won't start
+
 **Carried over from Jenkins version:**
 - Always use relative URLs in React — `localhost` in fetch calls breaks in production
 - `docker compose ps` showing `Up` is not the same as healthy — always add health checks
@@ -238,22 +279,28 @@ mkdir -p ~/task-manager
 
 ---
 
-## 📌 Improvements
-
-### ✅ Completed
-- [x] Migrated from Jenkins to GitHub Actions
+### Completed
+- [x] Migrated from Jenkins to GitHub Actions — zero CI server overhead
 - [x] Automated database table creation via `docker-entrypoint-initdb.d/`
 - [x] Docker health checks on all services
 - [x] Pinned image tags — exact build number deployed, never `:latest`
+- [x] Kubernetes manifests for all three services
+- [x] CI pipeline deploys to real kind cluster on every push
+- [x] Readiness and liveness probes on all pods
+- [x] Secrets management via Kubernetes Secrets
+- [x] Persistent storage for database via PVC
+- [x] Automated API smoke tests after deployment
 
-### 🔜 Up Next
-- [ ] Provision EC2 infrastructure with Terraform
+### Up Next
+- [ ] Helm charts — package manifests with configurable values
+- [ ] Multiple environments — dev, staging, production namespaces
+- [ ] Horizontal Pod Autoscaler
+- [ ] Provision EKS cluster with Terraform
 - [ ] Add security scanning — Trivy, Snyk, Checkov
-- [ ] Add Prometheus + Grafana monitoring
-- [ ] Migrate to Kubernetes deployment
+- [ ] Set up Prometheus + Grafana monitoring
 
 ---
 
-## 📄 License
+## License
 
 MIT
