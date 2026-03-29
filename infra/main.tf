@@ -28,6 +28,8 @@ resource "aws_subnet" "myapp-subnet-1" {
     
     tags = {
         Name = "${var.env_prefix}-subnet-1"
+        "kubernetes.io/cluster/myapp-eks-cluster" = "shared"
+        "kubernetes.io/role/elb" = "1"
     }
 }
 
@@ -39,6 +41,8 @@ resource "aws_subnet" "myapp-subnet-2" {
         
     tags = {
         Name = "${var.env_prefix}-subnet-2"
+        "kubernetes.io/cluster/myapp-eks-cluster" = "shared"
+        "kubernetes.io/role/elb" = "1"
     }
 }
 
