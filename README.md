@@ -1,17 +1,18 @@
 # PERN Task Manager — GitHub Actions CI/CD Pipeline
 
 ![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)
+![Terraform](https://img.shields.io/badge/Terraform-7B42BC?style=for-the-badge&logo=terraform&logoColor=white)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white)
+![AWS EKS](https://img.shields.io/badge/AWS_EKS-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
-![AWS](https://img.shields.io/badge/AWS_EC2-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)
 ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
 ![Nginx](https://img.shields.io/badge/Nginx-009639?style=for-the-badge&logo=nginx&logoColor=white)
 
-A full-stack PERN (PostgreSQL, Express, React, Node.js) task manager app with two deployment modes — Docker Compose on AWS EC2 and Kubernetes via kind/k3s — both automated through GitHub Actions.
+A full-stack PERN (PostgreSQL, Express, React, Node.js) task manager app with three deployment modes — Docker Compose on EC2, Kubernetes via kind/k3s, and Kubernetes on AWS EKS provisioned entirely with Terraform — all automated through GitHub Actions.
 
-> **v2 of this project** — previously deployed with Jenkins. Migrated to GitHub Actions and extended with Kubernetes support. See [task-manager-cicd-pipeline](https://github.com/kithupag/task-manager-cicd-pipeline) for the Jenkins version.
+> **v2 of this project** — previously deployed with Jenkins. Migrated to GitHub Actions and extended with Kubernetes support. See [task-manager-cicd-pipeline](https://github.com/yourusername/task-manager-cicd-pipeline) for the Jenkins version.
 
 ---
 
@@ -22,8 +23,10 @@ A full-stack PERN (PostgreSQL, Express, React, Node.js) task manager app with tw
 | Source Control | GitHub |
 | CI/CD | GitHub Actions |
 | Image Registry | Docker Hub |
-| Production Server | AWS EC2 (Amazon Linux 2023) |
-| Database | PostgreSQL 16 (Docker) |
+| Infrastructure as Code | Terraform |
+| Cloud | AWS (VPC, EKS, S3, DynamoDB) |
+| Container Orchestration | Kubernetes (kind, k3s, EKS) |
+| Database | PostgreSQL 16 |
 | Backend | Node.js + Express |
 | Frontend | React + Nginx |
 
@@ -52,6 +55,20 @@ build-and-push ─────────────────────�
                                               ├── Wait for backend + frontend
                                               └── Run API smoke tests
 ```
+
+### Mode 3 — Terraform + EKS
+```
+build-and-push ──► provision ──────────────────────► deploy
+   ├── Checkout      ├── Checkout                      ├── Checkout
+   ├── Login         ├── Configure AWS credentials      ├── Configure AWS credentials  
+   ├── Build client  ├── Setup Terraform               ├── Setup kubectl
+   └── Build server  ├── terraform init                ├── aws eks update-kubeconfig
+                     ├── terraform plan                ├── Update image tags
+                     └── terraform apply               ├── kubectl apply manifests
+                          (VPC + EKS + node groups)    └── kubectl rollout status
+```
+
+The `provision` job only runs when files in `infra/` change — app deployments skip straight to `deploy`. The `deploy` job uses `aws eks update-kubeconfig` instead of a stored kubeconfig secret.
 
 The `deploy` job has `needs: build-and-push` — it only runs if the build succeeds. Both jobs run on fresh GitHub-hosted Ubuntu VMs.
 
@@ -93,6 +110,14 @@ task-manager-github-actions/
 │   └── frontend/
 │       └── deployment.yaml         # Frontend Deployment + NodePort Service
 │
+├── infra/                          # Terraform infrastructure as code
+│   ├── bootstrap/
+│   │   └── main.tf                 # One-time: creates S3 state bucket + DynamoDB lock
+│   ├── main.tf                     # VPC, subnets, EKS cluster, security groups
+│   ├── variables.tf                # Input variables
+│   ├── outputs.tf                  # Cluster name, endpoint
+│   └── backend.tf                  # Remote state in S3
+│
 ├── database.sql                    # Mounted into postgres on fresh deploy
 ├── docker-compose.yaml             # Local dev + EC2 compose deployment
 └── README.md
@@ -113,6 +138,30 @@ location /api {
     proxy_pass http://todo-backend:5000;
 }
 ```
+
+**Terraform provisions all AWS infrastructure**
+The entire AWS environment — VPC, subnets, internet gateway, route tables, security groups, IAM roles, and the EKS cluster — is defined as code in `infra/main.tf`. A fresh AWS account can go from zero to a running EKS cluster with a single `terraform apply`. `terraform destroy` removes everything with no manual cleanup.
+
+**Remote state with S3 + DynamoDB locking**
+Terraform state lives in S3 so both local machines and GitHub Actions runners read and write the same state. DynamoDB provides state locking — prevents two pipeline runs from modifying infrastructure simultaneously and corrupting state.
+
+```hcl
+terraform {
+  backend "s3" {
+    bucket         = "myapp-terraform-state"
+    key            = "eks/terraform.tfstate"
+    region         = "ap-southeast-1"
+    dynamodb_table = "terraform-state-lock"
+    encrypt        = true
+  }
+}
+```
+
+**Bootstrap pattern for state infrastructure**
+The S3 bucket and DynamoDB table can't be managed by the same Terraform config that uses them — a chicken-and-egg problem. A separate `infra/bootstrap/` config creates them once manually. Everything else is managed by CI/CD.
+
+**Terraform only runs when infrastructure changes**
+The `provision` job uses a path filter — it only triggers when files in `infra/` are modified. Pushing app code changes skips Terraform entirely and goes straight to deployment. This prevents unnecessary EKS reprovisioning on every commit.
 
 **Build number pinning**
 The pipeline uses `sed` to replace image tags in `docker-compose.yaml` with the exact GitHub run number before deploying. Every production deployment references a specific immutable image — never `:latest`. Rollback is changing one number.
@@ -201,11 +250,15 @@ Go to **Settings → Secrets and variables → Actions** and add:
 
 | Secret | Value |
 |--------|-------|
-| `DOCKERHUB_USERNAME` | Your Docker Hub username |
-| `DOCKERHUB_TOKEN` | Docker Hub access token (not password) |
-| `EC2_HOST` | EC2 public IP or Elastic IP |
-| `EC2_USER` | `ec2-user` |
-| `EC2_SSH_KEY` | Private key contents (PEM format) |
+| `DOCKERHUB_USERNAME` | Docker Hub username |
+| `DOCKERHUB_TOKEN` | Docker Hub access token |
+| `EC2_HOST` | EC2 public IP (docker compose mode) |
+| `EC2_USER` | `ec2-user` (docker compose mode) |
+| `EC2_SSH_KEY` | Private key PEM (docker compose mode) |
+| `AWS_ACCESS_KEY_ID` | IAM user access key (Terraform + EKS mode) |
+| `AWS_SECRET_ACCESS_KEY` | IAM user secret key (Terraform + EKS mode) |
+| `AWS_REGION` | e.g. `ap-southeast-1` |
+| `EKS_CLUSTER_NAME` | `myapp-eks-cluster` |
 
 ### EC2 Requirements
 
@@ -266,12 +319,22 @@ mkdir -p ~/task-manager
 - Kubernetes service names are DNS — containers reach each other by service name, not IP
 - `kubectl describe pod` is more useful than `kubectl logs` when a pod won't start
 
+**From adding Terraform + EKS:**
+- Terraform state is not optional in CI/CD — GitHub Actions runners are ephemeral, state must live in S3
+- You cannot downgrade Kubernetes versions — AWS only allows upgrades. Always pin to a stable tested version, not the latest
+- EKS node groups fail silently — `NodeCreationFailure` can mean anything from wrong subnet tags to instance type capacity issues to a known bug in a new K8s version
+- The bootstrap pattern exists for a reason — you can't use Terraform to create the bucket that stores Terraform's own state
+- `terraform plan` in CI on feature branches, `terraform apply` only on main — never apply blindly without reviewing the plan
+- Terraform and application deployments have different lifecycles — keep them in separate jobs with separate triggers
+
 **Carried over from Jenkins version:**
 - Always use relative URLs in React — `localhost` in fetch calls breaks in production
 - `docker compose ps` showing `Up` is not the same as healthy — always add health checks
 - Env vars with duplicate keys in JS objects silently use the last value — never hardcode credentials
 
 ---
+
+## Improvements
 
 ### Completed
 - [x] Migrated from Jenkins to GitHub Actions — zero CI server overhead
@@ -284,17 +347,21 @@ mkdir -p ~/task-manager
 - [x] Secrets management via Kubernetes Secrets
 - [x] Persistent storage for database via PVC
 - [x] Automated API smoke tests after deployment
+- [x] Terraform provisions full AWS infrastructure — VPC, subnets, EKS cluster
+- [x] Remote Terraform state in S3 with DynamoDB locking
+- [x] Bootstrap pattern for state infrastructure
+- [x] Terraform only runs on infra changes — app deploys skip provisioning
 
 ### Up Next
 - [ ] Helm charts — package manifests with configurable values
 - [ ] Multiple environments — dev, staging, production namespaces
 - [ ] Horizontal Pod Autoscaler
-- [ ] Provision EKS cluster with Terraform
 - [ ] Add security scanning — Trivy, Snyk, Checkov
 - [ ] Set up Prometheus + Grafana monitoring
+- [ ] HTTPS with cert-manager and Let's Encrypt on EKS
 
 ---
 
-## License
+## 📄 License
 
 MIT
