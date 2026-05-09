@@ -1,104 +1,89 @@
 name: Build and Deploy
 
 on:
-  push: 
-    branches: [ main, feature/terraform-eks ]
+  push:
+    branches: [ main, feature/ansible ]
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Log in to secrets
+      - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and Push client
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/task-manager
+          tags: |
+            type=sha,prefix=,format=short
+
+      - name: Build and push Docker image (client)
         uses: docker/build-push-action@v5
         with:
           context: ./client
           push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/client:${{ github.run_number }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/client:latest
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/task-manager-client:${{ github.sha }}
 
-      - name: Build and Push server
+      - name: Build and push Docker image (server)
         uses: docker/build-push-action@v5
         with:
           context: ./server
           push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/server:${{ github.run_number }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/server:latest
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/task-manager-server:${{ github.sha }}
 
-  provision:
-    runs-on: ubuntu-latest
-    needs: build-and-push
-
-    steps: 
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
-          aws-region: ${{ secrets.AWS_REGION }}
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-
-      - name: Terraform Init
-        run: terraform -chdir=infra init
-
-      - name: Terraform Plan
-        run: terraform -chdir=infra plan
-
-      - name: Terraform Apply
-        run: terraform -chdir=infra apply -auto-approve
   deploy:
     runs-on: ubuntu-latest
-    needs: provision
+    needs: build-and-push
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
-          aws-region: ${{ secrets.AWS_REGION }}
-
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v3
-
-      - name: Configure kubeconfig
+      - name: Write SSH private key for Ansible droplet
         run: |
-          aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name ${{ secrets.EKS_CLUSTER_NAME }}
+          mkdir -p ~/.ssh
+          echo "${{ secrets.ANSIBLE_DROPLET_SSH_KEY }}" > ~/.ssh/ansible_droplet.pem
+          chmod 600 ~/.ssh/ansible_droplet.pem
 
-      - name: Update image tags
+      - name: Write EC2 SSH key (used by Ansible on the droplet)
         run: |
-          sed -i "s|image: ${{ secrets.DOCKERHUB_USERNAME }}/server:.*|image: ${{ secrets.DOCKERHUB_USERNAME }}/server:${{ github.run_number }}|" k8s/backend/deployment.yaml
-          sed -i "s|image: ${{ secrets.DOCKERHUB_USERNAME }}/client:.*|image: ${{ secrets.DOCKERHUB_USERNAME }}/client:${{ github.run_number }}|" k8s/frontend/deployment.yaml
+          echo "${{ secrets.EC2_SSH_KEY }}" > /tmp/ssh-key.pem
+          chmod 600 /tmp/ssh-key.pem
 
-      - name: Deploy to EKS Cluster
+      - name: Copy Ansible files to droplet
         run: |
-          kubectl apply -f k8s/postgres/secret.yaml
-          kubectl apply -f k8s/postgres/deployment.yaml
-          kubectl apply -f k8s/backend/deployment.yaml
-          kubectl apply -f k8s/frontend/deployment.yaml
-          kubectl rollout status deployment/backend --timeout=300s
-          kubectl rollout status deployment/frontend --timeout=300s
+          scp -i ~/.ssh/ansible_droplet.pem \
+            -o StrictHostKeyChecking=no \
+            -r .ansible/ \
+            ${{ secrets.ANSIBLE_DROPLET_USER }}@${{ secrets.ANSIBLE_DROPLET_HOST }}:~/ansible/
 
-      - name: Verify deployment
+      - name: Copy EC2 SSH key to droplet
         run: |
-          kubectl get pods
-          kubectl get services
+          scp -i ~/.ssh/ansible_droplet.pem \
+            -o StrictHostKeyChecking=no \
+            /tmp/ssh-key.pem \
+            ${{ secrets.ANSIBLE_DROPLET_USER }}@${{ secrets.ANSIBLE_DROPLET_HOST }}:~/.ssh-key.pem
+
+      - name: Run Ansible playbook on droplet
+        run: |
+          ssh -i ~/.ssh/ansible_droplet.pem \
+            -o StrictHostKeyChecking=no \
+            ${{ secrets.ANSIBLE_DROPLET_USER }}@${{ secrets.ANSIBLE_DROPLET_HOST }} \
+            "cd ~/ansible && \
+            export AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} && \
+            export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} && \
+            export AWS_REGION=ap-southeast-1 && \
+            ansible-playbook deploy-docker-new-user.yaml \
+              -e image_tag=${{ github.sha }} \
+              -e dockerhub_username=${{ secrets.DOCKERHUB_USERNAME }}"

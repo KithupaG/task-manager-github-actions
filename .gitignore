@@ -21,3 +21,31 @@ infra/bootstrap/*.tfvars
 # tf lock files
 infra/.terraform.lock.hcl
 infra/bootstrap/.terraform.lock.hcl
+
+# SSH & secrets
+*.pem
+*.key
+.env
+.env.*
+
+# Ansible secrets
+ansible/vault_pass.txt
+ansible/.vault_pass
+
+# Node
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Build output
+client/dist/
+client/build/
+server/dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
