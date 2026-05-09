@@ -1,0 +1,4 @@
+- name: Start containers
+  shell: docker compose up -d
+  args:
+    chdir: "{{ app_dir }}"

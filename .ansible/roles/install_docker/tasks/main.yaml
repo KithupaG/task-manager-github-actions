@@ -1,0 +1,5 @@
+- name: Make sure docker is installed
+  yum:
+    name: docker
+    state: present
+    update_cache: yes
