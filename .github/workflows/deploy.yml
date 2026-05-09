@@ -62,21 +62,21 @@ jobs:
 
       - name: Copy Ansible files to droplet
         run: |
-          scp -i ~/.ssh/ansible_droplet.pem \
+          scp ~/.ssh/ansible_droplet.pem \
             -o StrictHostKeyChecking=no \
             -r .ansible/ \
             ${{ secrets.ANSIBLE_DROPLET_USER }}@${{ secrets.ANSIBLE_DROPLET_HOST }}:~/ansible/
 
       - name: Copy EC2 SSH key to droplet
         run: |
-          scp -i ~/.ssh/ansible_droplet.pem \
+          scp ~/.ssh/ansible_droplet.pem \
             -o StrictHostKeyChecking=no \
             /tmp/ssh-key.pem \
             ${{ secrets.ANSIBLE_DROPLET_USER }}@${{ secrets.ANSIBLE_DROPLET_HOST }}:~/.ssh-key.pem
 
       - name: Run Ansible playbook on droplet
         run: |
-          ssh -i ~/.ssh/ansible_droplet.pem \
+          ssh ~/.ssh/ansible_droplet.pem \
             -o StrictHostKeyChecking=no \
             ${{ secrets.ANSIBLE_DROPLET_USER }}@${{ secrets.ANSIBLE_DROPLET_HOST }} \
             "cd ~/ansible && \
