@@ -50,11 +50,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Write SSH private key for Ansible droplet
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.ANSIBLE_DROPLET_SSH_KEY }}" > ~/.ssh/ansible_droplet.pem
-          chmod 600 ~/.ssh/ansible_droplet.pem
+      - name: Write SSH private key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.ANSIBLE_DROPLET_SSH_KEY }}
 
       - name: Write EC2 SSH key (used by Ansible on the droplet)
         run: |
