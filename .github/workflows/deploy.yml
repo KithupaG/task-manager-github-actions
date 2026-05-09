@@ -62,8 +62,13 @@ jobs:
 
       - name: Copy Ansible files to droplet
         run: |
+          ssh -o StrictHostKeyChecking=no \
+            ${{ secrets.ANSIBLE_DROPLET_USER }}@${{ secrets.ANSIBLE_DROPLET_HOST }} \
+            "mkdir -p ~/ansible"
           scp -o StrictHostKeyChecking=no \
-            -r ./ansible/ \
+            .ansible/ansible.cfg \
+            .ansible/inventory_aws_ec2.yaml \
+            .ansible/deploy-docker-new-user.yaml \
             ${{ secrets.ANSIBLE_DROPLET_USER }}@${{ secrets.ANSIBLE_DROPLET_HOST }}:~/ansible/
 
       - name: Copy EC2 SSH key to droplet
