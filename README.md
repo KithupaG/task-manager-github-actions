@@ -332,6 +332,8 @@ mkdir -p ~/task-manager
 - `docker compose ps` showing `Up` is not the same as healthy — always add health checks
 - Env vars with duplicate keys in JS objects silently use the last value — never hardcode credentials
 
+https://roadmap.sh/projects/task-tracker-js
+
 ---
 
 ## Improvements
