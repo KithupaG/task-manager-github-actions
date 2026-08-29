@@ -333,6 +333,7 @@ mkdir -p ~/task-manager
 - Env vars with duplicate keys in JS objects silently use the last value — never hardcode credentials
 
 https://roadmap.sh/projects/task-tracker-js
+https://roadmap.sh/projects/task-tracker
 
 ---
 
